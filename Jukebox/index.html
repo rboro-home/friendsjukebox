@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Friendship Jukebox</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            border-bottom: 2px solid #f0db4f;
+            padding-bottom: 10px;
+            margin-bottom: 40px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 30px;
+            max-width: 1400px;
+            width: 100%;
+        }
+
+        .card {
+            background: #2b2b2b;
+            border-radius: 10px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: background 0.3s;
+            cursor: pointer;
+            border: 1px solid #444;
+        }
+
+        .card:hover {
+            background: #383838;
+            border-color: #f0db4f;
+        }
+
+        .card.playing {
+            background: #4a4a4a;
+            border: 1px solid #00ff88;
+        }
+
+        /* The Vinyl Record CSS */
+        .record-sleeve {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .record {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: radial-gradient(circle, #000 30%, #333 31%, #000 32%, #333 60%, #111 100%);
+            border: 2px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            transition: transform 0.5s ease;
+        }
+
+        .label {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #f0db4f; /* Yellow Label */
+            font-size: 10px;
+            color: black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        /* Spin Animation */
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+
+        .card.playing .record {
+            animation: spin 2s linear infinite;
+            border-color: #00ff88;
+        }
+
+        .info {
+            flex-grow: 1;
+        }
+
+        .name {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .song {
+            font-size: 0.9em;
+            color: #bbb;
+            margin-top: 5px;
+        }
+
+        .artist {
+            font-size: 0.8em;
+            color: #f0db4f;
+            font-style: italic;
+        }
+
+        /* Footer Player */
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: #000;
+            padding: 15px;
+            text-align: center;
+            border-top: 2px solid #f0db4f;
+            display: none; /* Hidden until play */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>The Friendship Jukebox</h1>
+
+    <div class="grid" id="grid">
+        </div>
+
+    <div class="status-bar" id="statusBar">
+        Now Playing: <span id="nowPlayingText" style="color:#f0db4f; font-weight:bold;">...</span>
+    </div>
+
+    <audio id="mainAudio"></audio>
+
+    <script>
+        // DATA MAPPING
+        // ensure your files are named 1.mp3, 2.mp3 inside a "songs" folder
+        const data = [
+            { id: 1, name: "Biju D", song: "5 Leaves Left", artist: "Nick Drake" },
+            { id: 2, name: "Sukonya G", song: "Pal", artist: "KK" },
+            { id: 3, name: "Nabanita D", song: "Tomar Morome Mor", artist: "Jayanta Hazarika" },
+            { id: 4, name: "Mrigaxee B", song: "7 (Addicted)", artist: "Enrique" },
+            { id: 5, name: "Bhumika D", song: "Hero", artist: "Enrique" },
+            { id: 6, name: "Bitopi T", song: "Bailamos", artist: "Enrique" },
+            { id: 7, name: "Nikunj D", song: "Tum To Thehre Pardesi", artist: "Altaf Raja" },
+            { id: 8, name: "Rintu B", song: "Sifar", artist: "Lucky Ali" },
+            { id: 9, name: "Mriganka P", song: "Tumi Mur Mathu Mur", artist: "Zubeen Garg" },
+            { id: 10, name: "Bikramjit G", song: "Niribili Godhuli", artist: "Jitul Sonowal" },
+            { id: 11, name: "Sangeeta D", song: "Paakhi", artist: "Zubeen Garg" },
+            { id: 12, name: "Maitreyee C", song: "Kishore Compilation", artist: "Kishore Kumar" },
+            { id: 13, name: "Chayanika B", song: "Saher", artist: "Jagjit Singh" },
+            { id: 14, name: "Nomi S", song: "Dwipen Compilation", artist: "Dwipen Barua" },
+            { id: 15, name: "Gitartha B", song: "Supernatural", artist: "Santana" },
+            { id: 16, name: "Mrinal T", song: "Xilpi", artist: "Mrinal Taye" },
+            { id: 17, name: "Rinijini C", song: "Anamika", artist: "Zubeen Garg" },
+            { id: 18, name: "Rakesh G", song: "Tujhse naraaz nahi", artist: "Lata Mangeshkar" },
+            { id: 19, name: "Sobhit S", song: "Roi Roi Binale", artist: "Zubeen Garg" },
+            { id: 20, name: "Utpal D", song: "Maya", artist: "Zubeen Garg" },
+            { id: 21, name: "Abhijit B", song: "Tumi Suwa Jetiya", artist: "Zubeen Garg" },
+            { id: 22, name: "Sukanya D", song: "Anamika", artist: "Zubeen Garg" }
+        ];
+
+        const grid = document.getElementById('grid');
+        const audioPlayer = document.getElementById('mainAudio');
+        const statusBar = document.getElementById('statusBar');
+        const statusText = document.getElementById('nowPlayingText');
+        let currentCard = null;
+
+        data.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            // Generating initials for the record label
+            const initials = item.name.split(' ').map(n=>n[0]).join('');
+
+            card.innerHTML = `
+                <div class="record-sleeve">
+                    <div class="record">
+                        <div class="label">${initials}</div>
+                    </div>
+                </div>
+                <div class="info">
+                    <div class="name">${item.name}</div>
+                    <div class="song">${item.song}</div>
+                    <div class="artist">${item.artist}</div>
+                </div>
+            `;
+
+            // Click Event
+            card.onclick = () => {
+                // Determine file path
+                const filePath = `songs/${item.id}.mp3`;
+                
+                // Visual Reset
+                if (currentCard) currentCard.classList.remove('playing');
+                
+                // If clicking the same card, pause it
+                if (currentCard === card && !audioPlayer.paused) {
+                    audioPlayer.pause();
+                    currentCard = null;
+                    return;
+                }
+
+                // Play New
+                currentCard = card;
+                card.classList.add('playing');
+                audioPlayer.src = filePath;
+                audioPlayer.play().catch(e => alert("Could not find file: " + filePath));
+                
+                // Update Footer
+                statusBar.style.display = 'block';
+                statusText.innerText = `${item.song} - ${item.name}`;
+            };
+
+            grid.appendChild(card);
+        });
+
+        // Reset animation when song ends
+        audioPlayer.onended = () => {
+            if (currentCard) currentCard.classList.remove('playing');
+        };
+
+    </script>
+</body>
+</html>
