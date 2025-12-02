@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The CCZ Friendship Jukebox</title>
     <style>
         body {
@@ -21,31 +21,7 @@
             letter-spacing: 5px;
             border-bottom: 2px solid #f0db4f;
             padding-bottom: 10px;
-            margin-bottom: 20px;
-        }
-
-        /* Play All button (keeps the look & feel) */
-        #controls {
-            margin-bottom: 20px;
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
-        #playAllBtn {
-            background: #f0db4f;
-            color: #000;
-            border: none;
-            padding: 10px 16px;
-            font-weight: bold;
-            border-radius: 6px;
-            cursor: pointer;
-            font-family: inherit;
-            letter-spacing: 1px;
-        }
-
-        #playAllBtn[aria-playing="true"] {
-            background: #00ff88;
+            margin-bottom: 40px;
         }
 
         .grid {
@@ -78,10 +54,10 @@
             border: 1px solid #00ff88;
         }
 
-        /* The Vinyl Record CSS - made larger per request */
+        /* The Vinyl Record CSS */
         .record-sleeve {
-            width: 120px;   /* increased size */
-            height: 120px;  /* increased size */
+            width: 80px;
+            height: 80px;
             position: relative;
             flex-shrink: 0;
         }
@@ -100,11 +76,11 @@
         }
 
         .label {
-            width: 44px;   /* larger label */
-            height: 44px;  /* larger label */
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             background: #f0db4f; /* Yellow Label */
-            font-size: 14px;     /* larger font */
+            font-size: 10px;
             color: black;
             display: flex;
             align-items: center;
@@ -162,12 +138,8 @@
 
     <h1>The CCZ Friendship Jukebox</h1>
 
-    <div id="controls">
-        <button id="playAllBtn" aria-playing="false">Play All</button>
-        <span style="color:#bbb; font-size:0.9em;">Click a card to play individual track</span>
-    </div>
-
-    <div class="grid" id="grid"></div>
+    <div class="grid" id="grid">
+        </div>
 
     <div class="status-bar" id="statusBar">
         Now Playing: <span id="nowPlayingText" style="color:#f0db4f; font-weight:bold;">...</span>
@@ -177,6 +149,7 @@
 
     <script>
         // DATA MAPPING
+        // ensure your files are named 1.mp3, 2.mp3 inside a "songs" folder
         const data = [
             { id: 1, name: "Biju D", song: "5 Leaves Left", artist: "Nick Drake" },
             { id: 2, name: "Sukonya G", song: "Pal", artist: "KK" },
@@ -211,20 +184,13 @@
         const audioPlayer = document.getElementById('mainAudio');
         const statusBar = document.getElementById('statusBar');
         const statusText = document.getElementById('nowPlayingText');
-        const playAllBtn = document.getElementById('playAllBtn');
-
         let currentCard = null;
-        let isPlayingAll = false;
-        let playAllIndex = 0;
 
-        // Build cards and attach dataset for easy lookup
         data.forEach(item => {
             const card = document.createElement('div');
             card.className = 'card';
-            card.dataset.id = String(item.id);
-
             // Generating initials for the record label
-            const initials = item.name.split(' ').map(n => n[0]).join('');
+            const initials = item.name.split(' ').map(n=>n[0]).join('');
 
             card.innerHTML = `
                 <div class="record-sleeve">
@@ -239,148 +205,45 @@
                 </div>
             `;
 
-            // Click Event for individual play
-            card.addEventListener('click', () => {
-                // If playing a Play All playlist, stop it
-                if (isPlayingAll) {
-                    stopPlayAll();
-                }
-
+            // Click Event
+            card.onclick = () => {
+                // Determine file path
                 const filePath = `songs/${item.id}.mp3`;
-
-                // Toggle play/pause on same card
+                
+                // Visual Reset
+                if (currentCard) currentCard.classList.remove('playing');
+                
+                // If clicking the same card, pause it
                 if (currentCard === card && !audioPlayer.paused) {
                     audioPlayer.pause();
-                    card.classList.remove('playing');
                     currentCard = null;
-                    statusBar.style.display = audioPlayer.paused ? 'none' : 'block';
                     return;
                 }
 
-                // Reset previous visual
-                if (currentCard) currentCard.classList.remove('playing');
-
+                // Play New
                 currentCard = card;
                 card.classList.add('playing');
                 audioPlayer.src = filePath;
-                audioPlayer.play().catch(() => {
-                    alert("Could not find file: " + filePath);
-                    card.classList.remove('playing');
-                    currentCard = null;
-                });
-
+                audioPlayer.play().catch(e => alert("Could not find file: " + filePath));
+                
+                // Update Footer
                 statusBar.style.display = 'block';
                 statusText.innerText = `${item.song} - ${item.name}`;
-            });
+            };
 
             grid.appendChild(card);
         });
 
-        // Play All logic
-        playAllBtn.addEventListener('click', () => {
-            if (!isPlayingAll) {
-                startPlayAll();
-            } else {
-                stopPlayAll();
-            }
-        });
-
-        function startPlayAll() {
-            // Reset any single-play visuals
-            if (currentCard) {
-                currentCard.classList.remove('playing');
-                currentCard = null;
-            }
-
-            isPlayingAll = true;
-            playAllIndex = 0;
-            playAllBtn.setAttribute('aria-playing', 'true');
-            playAllBtn.textContent = 'Stop';
-            statusBar.style.display = 'block';
-            playNextInAll();
-        }
-
-        function stopPlayAll() {
-            isPlayingAll = false;
-            playAllIndex = 0;
-            playAllBtn.setAttribute('aria-playing', 'false');
-            playAllBtn.textContent = 'Play All';
-            audioPlayer.pause();
-            audioPlayer.removeAttribute('src');
-            audioPlayer.load();
-            // clear any playing states
-            document.querySelectorAll('.card.playing').forEach(c => c.classList.remove('playing'));
-            statusBar.style.display = 'none';
-            statusText.innerText = '...';
-        }
-
-        function playNextInAll() {
-            if (!isPlayingAll) return;
-
-            if (playAllIndex >= data.length) {
-                // finished playlist
-                stopPlayAll();
-                return;
-            }
-
-            const item = data[playAllIndex];
-            const filePath = `songs/${item.id}.mp3`;
-
-            // Visual: highlight corresponding card
-            document.querySelectorAll('.card.playing').forEach(c => c.classList.remove('playing'));
-            const nextCard = document.querySelector(`.card[data-id="${item.id}"]`);
-            if (nextCard) nextCard.classList.add('playing');
-            currentCard = nextCard;
-
-            statusText.innerText = `${item.song} - ${item.name} (${playAllIndex + 1}/${data.length})`;
-
-            audioPlayer.src = filePath;
-            audioPlayer.play().then(() => {
-                // play started successfully; wait for onended
-            }).catch(() => {
-                // couldn't play this file — skip to next after short delay
-                setTimeout(() => {
-                    playAllIndex++;
-                    playNextInAll();
-                }, 300);
-            });
-        }
-
-        // When a track finishes
-        audioPlayer.addEventListener('ended', () => {
-            if (isPlayingAll) {
-                playAllIndex++;
-                playNextInAll();
-            } else {
-                // single track finished — clear animation
-                if (currentCard) currentCard.classList.remove('playing');
-                statusBar.style.display = 'none';
-                statusText.innerText = '...';
-                currentCard = null;
-            }
-        });
-
-        // If audio errors out, skip to next if in play-all mode
-        audioPlayer.addEventListener('error', () => {
-            if (isPlayingAll) {
-                playAllIndex++;
-                playNextInAll();
-            } else {
-                if (currentCard) currentCard.classList.remove('playing');
-                statusBar.style.display = 'none';
-                statusText.innerText = '...';
-                currentCard = null;
-            }
-        });
-
-        // If a user manually pauses while Play All is active, treat as stop
-        audioPlayer.addEventListener('pause', () => {
-            if (isPlayingAll && !audioPlayer.ended) {
-                // user or script paused - treat as stop
-                stopPlayAll();
-            }
-        });
+        // Reset animation when song ends
+        audioPlayer.onended = () => {
+            if (currentCard) currentCard.classList.remove('playing');
+        };
 
     </script>
 </body>
+
 </html>
+
+
+
+
