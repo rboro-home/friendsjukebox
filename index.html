@@ -66,6 +66,7 @@
             transition: background 0.3s;
             cursor: pointer;
             border: 1px solid #444;
+            user-select: none;
         }
 
         .card:hover {
@@ -80,8 +81,8 @@
 
         /* The Vinyl Record CSS - made larger per request */
         .record-sleeve {
-            width: 80px;   
-            height: 80px;  
+            width: 120px;   /* increased size */
+            height: 120px;  /* increased size */
             position: relative;
             flex-shrink: 0;
         }
@@ -164,7 +165,7 @@
 
     <div id="controls">
         <button id="playAllBtn" aria-playing="false">Play All</button>
-        <span style="color:#bbb; font-size:0.9em;">Click a card to play individual track</span>
+        <span style="color:#bbb; font-size:0.9em;">Single-click toggles play/pause • Double-click restarts</span>
     </div>
 
     <div class="grid" id="grid"></div>
@@ -217,6 +218,18 @@
         let isPlayingAll = false;
         let playAllIndex = 0;
 
+        // Helper: show status bar with text
+        function showStatus(text) {
+            statusBar.style.display = 'block';
+            statusText.innerText = text;
+        }
+
+        // Helper: hide status bar
+        function hideStatus() {
+            statusBar.style.display = 'none';
+            statusText.innerText = '...';
+        }
+
         // Build cards and attach dataset for easy lookup
         data.forEach(item => {
             const card = document.createElement('div');
@@ -239,38 +252,122 @@
                 </div>
             `;
 
-            // Click Event for individual play
-            card.addEventListener('click', () => {
-                // If playing a Play All playlist, stop it
+            // Single-click vs double-click handling:
+            // Use a small timeout to differentiate single clicks from double-clicks.
+            let clickTimer = null;
+            const CLICK_DELAY = 250; // ms
+
+            // Single click: toggle play/pause for this card
+            function handleSingleClick() {
+                // If Play All is active, stop it when user interacts with an individual card
                 if (isPlayingAll) {
                     stopPlayAll();
                 }
 
                 const filePath = `songs/${item.id}.mp3`;
 
-                // Toggle play/pause on same card
+                // If this card is currently playing and audio is playing -> pause
                 if (currentCard === card && !audioPlayer.paused) {
                     audioPlayer.pause();
                     card.classList.remove('playing');
-                    currentCard = null;
-                    statusBar.style.display = audioPlayer.paused ? 'none' : 'block';
+                    // Keep status bar visible but indicate paused
+                    statusText.innerText = 'Paused - ' + `${item.song} - ${item.name}`;
                     return;
                 }
 
-                // Reset previous visual
+                // If this card is current but paused -> resume
+                if (currentCard === card && audioPlayer.paused) {
+                    audioPlayer.play().catch(() => {
+                        alert("Could not resume file: " + filePath);
+                        card.classList.remove('playing');
+                        currentCard = null;
+                        hideStatus();
+                    });
+                    card.classList.add('playing');
+                    showStatus(`${item.song} - ${item.name}`);
+                    return;
+                }
+
+                // Play new card
                 if (currentCard) currentCard.classList.remove('playing');
 
                 currentCard = card;
                 card.classList.add('playing');
                 audioPlayer.src = filePath;
-                audioPlayer.play().catch(() => {
+                audioPlayer.currentTime = 0;
+                audioPlayer.play().then(() => {
+                    showStatus(`${item.song} - ${item.name}`);
+                }).catch(() => {
                     alert("Could not find file: " + filePath);
                     card.classList.remove('playing');
                     currentCard = null;
+                    hideStatus();
                 });
+            }
 
-                statusBar.style.display = 'block';
-                statusText.innerText = `${item.song} - ${item.name}`;
+            // Double click: restart the track from the start and play
+            function handleDoubleClick() {
+                // If Play All is active, stop it
+                if (isPlayingAll) {
+                    stopPlayAll();
+                }
+
+                const filePath = `songs/${item.id}.mp3`;
+
+                // If this card isn't current, start it fresh
+                if (currentCard !== card) {
+                    if (currentCard) currentCard.classList.remove('playing');
+                    currentCard = card;
+                    card.classList.add('playing');
+                    audioPlayer.src = filePath;
+                    // ensure it starts from 0
+                    audioPlayer.currentTime = 0;
+                    audioPlayer.play().then(() => {
+                        showStatus(`${item.song} - ${item.name}`);
+                    }).catch(() => {
+                        alert("Could not find file: " + filePath);
+                        card.classList.remove('playing');
+                        currentCard = null;
+                        hideStatus();
+                    });
+                    return;
+                }
+
+                // If it's already current, restart from 0 and play
+                try {
+                    audioPlayer.currentTime = 0;
+                } catch (e) { /* ignore */ }
+                audioPlayer.play().then(() => {
+                    card.classList.add('playing');
+                    showStatus(`${item.song} - ${item.name}`);
+                }).catch(() => {
+                    alert("Could not restart file: " + filePath);
+                    card.classList.remove('playing');
+                    currentCard = null;
+                    hideStatus();
+                });
+            }
+
+            // Attach click handler
+            card.addEventListener('click', (ev) => {
+                // Start a timer; if dblclick happens, it will clear this
+                if (clickTimer) {
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                }
+                clickTimer = setTimeout(() => {
+                    handleSingleClick();
+                    clickTimer = null;
+                }, CLICK_DELAY);
+            });
+
+            // Attach dblclick handler (clears single-click timer and executes double-click action)
+            card.addEventListener('dblclick', (ev) => {
+                if (clickTimer) {
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                }
+                handleDoubleClick();
             });
 
             grid.appendChild(card);
@@ -296,7 +393,7 @@
             playAllIndex = 0;
             playAllBtn.setAttribute('aria-playing', 'true');
             playAllBtn.textContent = 'Stop';
-            statusBar.style.display = 'block';
+            showStatus('Starting playlist...');
             playNextInAll();
         }
 
@@ -310,8 +407,7 @@
             audioPlayer.load();
             // clear any playing states
             document.querySelectorAll('.card.playing').forEach(c => c.classList.remove('playing'));
-            statusBar.style.display = 'none';
-            statusText.innerText = '...';
+            hideStatus();
         }
 
         function playNextInAll() {
@@ -332,9 +428,10 @@
             if (nextCard) nextCard.classList.add('playing');
             currentCard = nextCard;
 
-            statusText.innerText = `${item.song} - ${item.name} (${playAllIndex + 1}/${data.length})`;
+            showStatus(`${item.song} - ${item.name} (${playAllIndex + 1}/${data.length})`);
 
             audioPlayer.src = filePath;
+            audioPlayer.currentTime = 0;
             audioPlayer.play().then(() => {
                 // play started successfully; wait for onended
             }).catch(() => {
@@ -354,8 +451,7 @@
             } else {
                 // single track finished — clear animation
                 if (currentCard) currentCard.classList.remove('playing');
-                statusBar.style.display = 'none';
-                statusText.innerText = '...';
+                hideStatus();
                 currentCard = null;
             }
         });
@@ -367,8 +463,7 @@
                 playNextInAll();
             } else {
                 if (currentCard) currentCard.classList.remove('playing');
-                statusBar.style.display = 'none';
-                statusText.innerText = '...';
+                hideStatus();
                 currentCard = null;
             }
         });
