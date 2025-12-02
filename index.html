@@ -67,6 +67,7 @@
             cursor: pointer;
             border: 1px solid #444;
             user-select: none;
+            position: relative; /* for tooltip positioning */
         }
 
         .card:hover {
@@ -81,8 +82,8 @@
 
         /* The Vinyl Record CSS - made larger per request */
         .record-sleeve {
-            width: 80px;   /* increased size */
-            height: 80px;  /* increased size */
+            width: 120px;   /* increased size */
+            height: 120px;  /* increased size */
             position: relative;
             flex-shrink: 0;
         }
@@ -157,6 +158,28 @@
             border-top: 2px solid #f0db4f;
             display: none; /* Hidden until play */
         }
+
+        /* Paused tooltip */
+        .paused-tip {
+            position: absolute;
+            top: -10px;
+            right: 12px;
+            background: #000;
+            color: #f0db4f;
+            padding: 4px 8px;
+            font-size: 0.75em;
+            border: 1px solid #f0db4f;
+            border-radius: 4px;
+            opacity: 0.95;
+            pointer-events: none;
+            animation: fadeIn 0.16s ease-out;
+            z-index: 10;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 0.95; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
@@ -230,6 +253,20 @@
             statusText.innerText = '...';
         }
 
+        // Paused tooltip helpers
+        function clearPausedTooltips() {
+            document.querySelectorAll('.paused-tip').forEach(tip => tip.remove());
+        }
+
+        function showPausedTooltip(card) {
+            clearPausedTooltips(); // single tooltip at a time
+            const tip = document.createElement('div');
+            tip.className = 'paused-tip';
+            tip.textContent = 'Paused';
+            // ensure card is position: relative (set in CSS)
+            card.appendChild(tip);
+        }
+
         // Build cards and attach dataset for easy lookup
         data.forEach(item => {
             const card = document.createElement('div');
@@ -253,7 +290,6 @@
             `;
 
             // Single-click vs double-click handling:
-            // Use a small timeout to differentiate single clicks from double-clicks.
             let clickTimer = null;
             const CLICK_DELAY = 250; // ms
 
@@ -267,16 +303,21 @@
                 const filePath = `songs/${item.id}.mp3`;
 
                 // If this card is currently playing and audio is playing -> pause
-                if (currentCard === card && !audioPlayer.paused) {
+                if (currentCard === card && !audioPlayer.paused && !audioPlayer.ended) {
                     audioPlayer.pause();
                     card.classList.remove('playing');
-                    // Keep status bar visible but indicate paused
+                    showPausedTooltip(card);
                     statusText.innerText = 'Paused - ' + `${item.song} - ${item.name}`;
                     return;
                 }
 
                 // If this card is current but paused -> resume
                 if (currentCard === card && audioPlayer.paused) {
+                    // If audio element has no src (previous Play All might have cleared it), ensure src is set
+                    if (!audioPlayer.src || audioPlayer.src === "") {
+                        audioPlayer.src = filePath;
+                    }
+                    clearPausedTooltips();
                     audioPlayer.play().catch(() => {
                         alert("Could not resume file: " + filePath);
                         card.classList.remove('playing');
@@ -289,12 +330,16 @@
                 }
 
                 // Play new card
-                if (currentCard) currentCard.classList.remove('playing');
+                if (currentCard) {
+                    currentCard.classList.remove('playing');
+                }
+                clearPausedTooltips();
 
                 currentCard = card;
                 card.classList.add('playing');
                 audioPlayer.src = filePath;
-                audioPlayer.currentTime = 0;
+                // start from beginning for new selection
+                try { audioPlayer.currentTime = 0; } catch (e) { /* ignore */ }
                 audioPlayer.play().then(() => {
                     showStatus(`${item.song} - ${item.name}`);
                 }).catch(() => {
@@ -314,14 +359,13 @@
 
                 const filePath = `songs/${item.id}.mp3`;
 
-                // If this card isn't current, start it fresh
                 if (currentCard !== card) {
                     if (currentCard) currentCard.classList.remove('playing');
+                    clearPausedTooltips();
                     currentCard = card;
                     card.classList.add('playing');
                     audioPlayer.src = filePath;
-                    // ensure it starts from 0
-                    audioPlayer.currentTime = 0;
+                    try { audioPlayer.currentTime = 0; } catch(e) {}
                     audioPlayer.play().then(() => {
                         showStatus(`${item.song} - ${item.name}`);
                     }).catch(() => {
@@ -334,9 +378,8 @@
                 }
 
                 // If it's already current, restart from 0 and play
-                try {
-                    audioPlayer.currentTime = 0;
-                } catch (e) { /* ignore */ }
+                clearPausedTooltips();
+                try { audioPlayer.currentTime = 0; } catch(e) {}
                 audioPlayer.play().then(() => {
                     card.classList.add('playing');
                     showStatus(`${item.song} - ${item.name}`);
@@ -350,7 +393,6 @@
 
             // Attach click handler
             card.addEventListener('click', (ev) => {
-                // Start a timer; if dblclick happens, it will clear this
                 if (clickTimer) {
                     clearTimeout(clickTimer);
                     clickTimer = null;
@@ -388,6 +430,7 @@
                 currentCard.classList.remove('playing');
                 currentCard = null;
             }
+            clearPausedTooltips();
 
             isPlayingAll = true;
             playAllIndex = 0;
@@ -398,16 +441,35 @@
         }
 
         function stopPlayAll() {
+            // Stop the playlist and fully reset audio & UI state
             isPlayingAll = false;
             playAllIndex = 0;
             playAllBtn.setAttribute('aria-playing', 'false');
             playAllBtn.textContent = 'Play All';
-            audioPlayer.pause();
-            audioPlayer.removeAttribute('src');
-            audioPlayer.load();
-            // clear any playing states
+
+            // pause & reset audio element
+            try {
+                audioPlayer.pause();
+            } catch (e) {}
+            try {
+                audioPlayer.currentTime = 0;
+            } catch (e) {}
+            // clear source so there is no dangling src to resume
+            try {
+                audioPlayer.removeAttribute('src');
+                audioPlayer.src = '';
+            } catch (e) {}
+            try {
+                audioPlayer.load();
+            } catch (e) {}
+
+            // clear UI
             document.querySelectorAll('.card.playing').forEach(c => c.classList.remove('playing'));
+            clearPausedTooltips();
             hideStatus();
+
+            // IMPORTANT: make sure there's no stale currentCard left (this fixed the bug)
+            currentCard = null;
         }
 
         function playNextInAll() {
@@ -431,7 +493,7 @@
             showStatus(`${item.song} - ${item.name} (${playAllIndex + 1}/${data.length})`);
 
             audioPlayer.src = filePath;
-            audioPlayer.currentTime = 0;
+            try { audioPlayer.currentTime = 0; } catch(e) {}
             audioPlayer.play().then(() => {
                 // play started successfully; wait for onended
             }).catch(() => {
@@ -445,6 +507,7 @@
 
         // When a track finishes
         audioPlayer.addEventListener('ended', () => {
+            clearPausedTooltips();
             if (isPlayingAll) {
                 playAllIndex++;
                 playNextInAll();
@@ -458,6 +521,7 @@
 
         // If audio errors out, skip to next if in play-all mode
         audioPlayer.addEventListener('error', () => {
+            clearPausedTooltips();
             if (isPlayingAll) {
                 playAllIndex++;
                 playNextInAll();
@@ -470,8 +534,8 @@
 
         // If a user manually pauses while Play All is active, treat as stop
         audioPlayer.addEventListener('pause', () => {
+            // if Play All was active and we paused mid-track, stop the Play All session
             if (isPlayingAll && !audioPlayer.ended) {
-                // user or script paused - treat as stop
                 stopPlayAll();
             }
         });
@@ -479,4 +543,3 @@
     </script>
 </body>
 </html>
-
