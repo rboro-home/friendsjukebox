@@ -184,4 +184,203 @@
             { id: 4, name: "Mrigaxee B", song: "7 (Addicted)", artist: "Enrique" },
             { id: 5, name: "Bhumika D", song: "Hero", artist: "Enrique" },
             { id: 6, name: "Mrigaxee B", song: "Hero (Acoustic Cover)", artist: "Rintu Boro" },
-            { id: 7, name: "Nikunj D", song: "Tum To
+            { id: 7, name: "Nikunj D", song: "Tum To Thehre Pardesi", artist: "Altaf Raja" },
+            { id: 8, name: "Rintu B", song: "Sifar", artist: "Lucky Ali" },
+            { id: 9, name: "Mriganka P", song: "Tumi Mur Mathu Mur", artist: "Zubeen Garg" },
+            { id: 10, name: "Bikramjit G", song: "Niribili Godhuli", artist: "Jitul Sonowal" },
+            { id: 11, name: "Sangeeta D", song: "Paakhi", artist: "Zubeen Garg" },
+            { id: 12, name: "Maitreyee C", song: "Kishore Compilation", artist: "Kishore Kumar" },
+            { id: 13, name: "Chayanika B", song: "Saher", artist: "Jagjit Singh" },
+            { id: 14, name: "Nomi S", song: "Dwipen Compilation", artist: "Dwipen Barua" },
+            { id: 15, name: "Gitartha B", song: "Supernatural", artist: "Santana" },
+            { id: 16, name: "Mrinal T", song: "Xilpi", artist: "Mrinal Taye" },
+            { id: 17, name: "Rinijini C", song: "Anamika", artist: "Zubeen Garg" },
+            { id: 18, name: "Rakesh G", song: "Tujhse naraaz nahi", artist: "Lata Mangeshkar" },
+            { id: 19, name: "Sobhit S", song: "Roi Roi Binale", artist: "Zubeen Garg" },
+            { id: 20, name: "Utpal D", song: "Maya", artist: "Zubeen Garg" },
+            { id: 21, name: "Abhijit B", song: "Tumi Suwa Jetiya", artist: "Zubeen Garg" },
+            { id: 22, name: "Sukanya D", song: "Anamika", artist: "Zubeen Garg" },
+            { id: 23, name: "Bipul S", song: "EK Chatur Naar", artist: "Kishore Kumar" },
+            { id: 24, name: "Debojit H", song: "O Sanam", artist: "Lucky Ali" },
+            { id: 25, name: "Bitopi T", song: "Bailamos", artist: "Enrique" },
+            { id: 26, name: "Manmoyuri D", song: "Mur Minoti", artist: "Jayanta Hazarika" },
+            { id: 27, name: "Lima B", song: "Someday", artist: "MLTR" }
+        ];
+
+        const grid = document.getElementById('grid');
+        const audioPlayer = document.getElementById('mainAudio');
+        const statusBar = document.getElementById('statusBar');
+        const statusText = document.getElementById('nowPlayingText');
+        const playAllBtn = document.getElementById('playAllBtn');
+
+        let currentCard = null;
+        let isPlayingAll = false;
+        let playAllIndex = 0;
+
+        // Build cards and attach dataset for easy lookup
+        data.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.dataset.id = String(item.id);
+
+            // Generating initials for the record label
+            const initials = item.name.split(' ').map(n => n[0]).join('');
+
+            card.innerHTML = `
+                <div class="record-sleeve">
+                    <div class="record">
+                        <div class="label">${initials}</div>
+                    </div>
+                </div>
+                <div class="info">
+                    <div class="name">${item.name}</div>
+                    <div class="song">${item.song}</div>
+                    <div class="artist">${item.artist}</div>
+                </div>
+            `;
+
+            // Click Event for individual play
+            card.addEventListener('click', () => {
+                // If playing a Play All playlist, stop it
+                if (isPlayingAll) {
+                    stopPlayAll();
+                }
+
+                const filePath = `songs/${item.id}.mp3`;
+
+                // Toggle play/pause on same card
+                if (currentCard === card && !audioPlayer.paused) {
+                    audioPlayer.pause();
+                    card.classList.remove('playing');
+                    currentCard = null;
+                    statusBar.style.display = audioPlayer.paused ? 'none' : 'block';
+                    return;
+                }
+
+                // Reset previous visual
+                if (currentCard) currentCard.classList.remove('playing');
+
+                currentCard = card;
+                card.classList.add('playing');
+                audioPlayer.src = filePath;
+                audioPlayer.play().catch(() => {
+                    alert("Could not find file: " + filePath);
+                    card.classList.remove('playing');
+                    currentCard = null;
+                });
+
+                statusBar.style.display = 'block';
+                statusText.innerText = `${item.song} - ${item.name}`;
+            });
+
+            grid.appendChild(card);
+        });
+
+        // Play All logic
+        playAllBtn.addEventListener('click', () => {
+            if (!isPlayingAll) {
+                startPlayAll();
+            } else {
+                stopPlayAll();
+            }
+        });
+
+        function startPlayAll() {
+            // Reset any single-play visuals
+            if (currentCard) {
+                currentCard.classList.remove('playing');
+                currentCard = null;
+            }
+
+            isPlayingAll = true;
+            playAllIndex = 0;
+            playAllBtn.setAttribute('aria-playing', 'true');
+            playAllBtn.textContent = 'Stop';
+            statusBar.style.display = 'block';
+            playNextInAll();
+        }
+
+        function stopPlayAll() {
+            isPlayingAll = false;
+            playAllIndex = 0;
+            playAllBtn.setAttribute('aria-playing', 'false');
+            playAllBtn.textContent = 'Play All';
+            audioPlayer.pause();
+            audioPlayer.removeAttribute('src');
+            audioPlayer.load();
+            // clear any playing states
+            document.querySelectorAll('.card.playing').forEach(c => c.classList.remove('playing'));
+            statusBar.style.display = 'none';
+            statusText.innerText = '...';
+        }
+
+        function playNextInAll() {
+            if (!isPlayingAll) return;
+
+            if (playAllIndex >= data.length) {
+                // finished playlist
+                stopPlayAll();
+                return;
+            }
+
+            const item = data[playAllIndex];
+            const filePath = `songs/${item.id}.mp3`;
+
+            // Visual: highlight corresponding card
+            document.querySelectorAll('.card.playing').forEach(c => c.classList.remove('playing'));
+            const nextCard = document.querySelector(`.card[data-id="${item.id}"]`);
+            if (nextCard) nextCard.classList.add('playing');
+            currentCard = nextCard;
+
+            statusText.innerText = `${item.song} - ${item.name} (${playAllIndex + 1}/${data.length})`;
+
+            audioPlayer.src = filePath;
+            audioPlayer.play().then(() => {
+                // play started successfully; wait for onended
+            }).catch(() => {
+                // couldn't play this file — skip to next after short delay
+                setTimeout(() => {
+                    playAllIndex++;
+                    playNextInAll();
+                }, 300);
+            });
+        }
+
+        // When a track finishes
+        audioPlayer.addEventListener('ended', () => {
+            if (isPlayingAll) {
+                playAllIndex++;
+                playNextInAll();
+            } else {
+                // single track finished — clear animation
+                if (currentCard) currentCard.classList.remove('playing');
+                statusBar.style.display = 'none';
+                statusText.innerText = '...';
+                currentCard = null;
+            }
+        });
+
+        // If audio errors out, skip to next if in play-all mode
+        audioPlayer.addEventListener('error', () => {
+            if (isPlayingAll) {
+                playAllIndex++;
+                playNextInAll();
+            } else {
+                if (currentCard) currentCard.classList.remove('playing');
+                statusBar.style.display = 'none';
+                statusText.innerText = '...';
+                currentCard = null;
+            }
+        });
+
+        // If a user manually pauses while Play All is active, treat as stop
+        audioPlayer.addEventListener('pause', () => {
+            if (isPlayingAll && !audioPlayer.ended) {
+                // user or script paused - treat as stop
+                stopPlayAll();
+            }
+        });
+
+    </script>
+</body>
+</html>
