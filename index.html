@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>The CCZ Friendship Jukebox</title>
     <style>
         body {
@@ -21,7 +21,31 @@
             letter-spacing: 5px;
             border-bottom: 2px solid #f0db4f;
             padding-bottom: 10px;
-            margin-bottom: 40px;
+            margin-bottom: 20px;
+        }
+
+        /* Play All button (keeps the look & feel) */
+        #controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        #playAllBtn {
+            background: #f0db4f;
+            color: #000;
+            border: none;
+            padding: 10px 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            letter-spacing: 1px;
+        }
+
+        #playAllBtn[aria-playing="true"] {
+            background: #00ff88;
         }
 
         .grid {
@@ -54,10 +78,10 @@
             border: 1px solid #00ff88;
         }
 
-        /* The Vinyl Record CSS */
+        /* The Vinyl Record CSS - made larger per request */
         .record-sleeve {
-            width: 80px;
-            height: 80px;
+            width: 120px;   /* increased size */
+            height: 120px;  /* increased size */
             position: relative;
             flex-shrink: 0;
         }
@@ -76,11 +100,11 @@
         }
 
         .label {
-            width: 30px;
-            height: 30px;
+            width: 44px;   /* larger label */
+            height: 44px;  /* larger label */
             border-radius: 50%;
             background: #f0db4f; /* Yellow Label */
-            font-size: 10px;
+            font-size: 14px;     /* larger font */
             color: black;
             display: flex;
             align-items: center;
@@ -138,8 +162,12 @@
 
     <h1>The CCZ Friendship Jukebox</h1>
 
-    <div class="grid" id="grid">
-        </div>
+    <div id="controls">
+        <button id="playAllBtn" aria-playing="false">Play All</button>
+        <span style="color:#bbb; font-size:0.9em;">Click a card to play individual track</span>
+    </div>
+
+    <div class="grid" id="grid"></div>
 
     <div class="status-bar" id="statusBar">
         Now Playing: <span id="nowPlayingText" style="color:#f0db4f; font-weight:bold;">...</span>
@@ -149,7 +177,6 @@
 
     <script>
         // DATA MAPPING
-        // ensure your files are named 1.mp3, 2.mp3 inside a "songs" folder
         const data = [
             { id: 1, name: "Biju D", song: "5 Leaves Left", artist: "Nick Drake" },
             { id: 2, name: "Sukonya G", song: "Pal", artist: "KK" },
@@ -157,94 +184,4 @@
             { id: 4, name: "Mrigaxee B", song: "7 (Addicted)", artist: "Enrique" },
             { id: 5, name: "Bhumika D", song: "Hero", artist: "Enrique" },
             { id: 6, name: "Mrigaxee B", song: "Hero (Acoustic Cover)", artist: "Rintu Boro" },
-            { id: 7, name: "Nikunj D", song: "Tum To Thehre Pardesi", artist: "Altaf Raja" },
-            { id: 8, name: "Rintu B", song: "Sifar", artist: "Lucky Ali" },
-            { id: 9, name: "Mriganka P", song: "Tumi Mur Mathu Mur", artist: "Zubeen Garg" },
-            { id: 10, name: "Bikramjit G", song: "Niribili Godhuli", artist: "Jitul Sonowal" },
-            { id: 11, name: "Sangeeta D", song: "Paakhi", artist: "Zubeen Garg" },
-            { id: 12, name: "Maitreyee C", song: "Kishore Compilation", artist: "Kishore Kumar" },
-            { id: 13, name: "Chayanika B", song: "Saher", artist: "Jagjit Singh" },
-            { id: 14, name: "Nomi S", song: "Dwipen Compilation", artist: "Dwipen Barua" },
-            { id: 15, name: "Gitartha B", song: "Supernatural", artist: "Santana" },
-            { id: 16, name: "Mrinal T", song: "Xilpi", artist: "Mrinal Taye" },
-            { id: 17, name: "Rinijini C", song: "Anamika", artist: "Zubeen Garg" },
-            { id: 18, name: "Rakesh G", song: "Tujhse naraaz nahi", artist: "Lata Mangeshkar" },
-            { id: 19, name: "Sobhit S", song: "Roi Roi Binale", artist: "Zubeen Garg" },
-            { id: 20, name: "Utpal D", song: "Maya", artist: "Zubeen Garg" },
-            { id: 21, name: "Abhijit B", song: "Tumi Suwa Jetiya", artist: "Zubeen Garg" },
-            { id: 22, name: "Sukanya D", song: "Anamika", artist: "Zubeen Garg" },
-            { id: 23, name: "Bipul S", song: "EK Chatur Naar", artist: "Kishore Kumar" },
-            { id: 24, name: "Debojit H", song: "O Sanam", artist: "Lucky Ali" },
-            { id: 25, name: "Bitopi T", song: "Bailamos", artist: "Enrique" },
-            { id: 26, name: "Manmoyuri D", song: "Mur Minoti", artist: "Jayanta Hazarika" },
-            { id: 27, name: "Lima B", song: "Someday", artist: "MLTR" }
-        ];
-
-        const grid = document.getElementById('grid');
-        const audioPlayer = document.getElementById('mainAudio');
-        const statusBar = document.getElementById('statusBar');
-        const statusText = document.getElementById('nowPlayingText');
-        let currentCard = null;
-
-        data.forEach(item => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            // Generating initials for the record label
-            const initials = item.name.split(' ').map(n=>n[0]).join('');
-
-            card.innerHTML = `
-                <div class="record-sleeve">
-                    <div class="record">
-                        <div class="label">${initials}</div>
-                    </div>
-                </div>
-                <div class="info">
-                    <div class="name">${item.name}</div>
-                    <div class="song">${item.song}</div>
-                    <div class="artist">${item.artist}</div>
-                </div>
-            `;
-
-            // Click Event
-            card.onclick = () => {
-                // Determine file path
-                const filePath = `songs/${item.id}.mp3`;
-                
-                // Visual Reset
-                if (currentCard) currentCard.classList.remove('playing');
-                
-                // If clicking the same card, pause it
-                if (currentCard === card && !audioPlayer.paused) {
-                    audioPlayer.pause();
-                    currentCard = null;
-                    return;
-                }
-
-                // Play New
-                currentCard = card;
-                card.classList.add('playing');
-                audioPlayer.src = filePath;
-                audioPlayer.play().catch(e => alert("Could not find file: " + filePath));
-                
-                // Update Footer
-                statusBar.style.display = 'block';
-                statusText.innerText = `${item.song} - ${item.name}`;
-            };
-
-            grid.appendChild(card);
-        });
-
-        // Reset animation when song ends
-        audioPlayer.onended = () => {
-            if (currentCard) currentCard.classList.remove('playing');
-        };
-
-    </script>
-</body>
-
-</html>
-
-
-
-
-
+            { id: 7, name: "Nikunj D", song: "Tum To
