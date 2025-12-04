@@ -199,9 +199,9 @@
 
     <audio id="mainAudio"></audio>
 
-    <script>
-        // DATA MAPPING
-        const data = [
+      <script>
+          // DATA MAPPING (unchanged)
+          const data = [
             { id: 1, name: "Sukonya G", song: "Pal", artist: "KK" },
             { id: 2, name: "Biju D", song: "5 Leaves Left", artist: "Nick Drake" },            
             { id: 3, name: "Nabanita D", song: "Tomar Morome Mor", artist: "Jayanta Hazarika" },
@@ -229,321 +229,185 @@
             { id: 25, name: "Bitopi T", song: "Bailamos", artist: "Enrique" },
             { id: 26, name: "Manmoyuri D", song: "Mur Minoti", artist: "Jayanta Hazarika" },
             { id: 27, name: "Nikunj D", song: "Tum To Thehre Pardesi", artist: "Altaf Raja" },
-            { id: 28, name: "Arunima D", song: "Tum Bin Jiya Jaye", artist: "K S Chithra"}
-        ];
-
-        const grid = document.getElementById('grid');
-        const audioPlayer = document.getElementById('mainAudio');
-        const statusBar = document.getElementById('statusBar');
-        const statusText = document.getElementById('nowPlayingText');
-        const playAllBtn = document.getElementById('playAllBtn');
-
-        let currentCard = null;
-        let isPlayingAll = false;
-        let playAllIndex = 0;
-
-        // Helper: show status bar with text
-        function showStatus(text) {
-            statusBar.style.display = 'block';
-            statusText.innerText = text;
-        }
-
-        // Helper: hide status bar
-        function hideStatus() {
-            statusBar.style.display = 'none';
-            statusText.innerText = '...';
-        }
-
-        // Paused tooltip helpers
-        function clearPausedTooltips() {
-            document.querySelectorAll('.paused-tip').forEach(tip => tip.remove());
-        }
-
-        function showPausedTooltip(card) {
-            clearPausedTooltips(); // single tooltip at a time
-            const tip = document.createElement('div');
-            tip.className = 'paused-tip';
-            tip.textContent = 'Paused';
-            // ensure card is position: relative (set in CSS)
+            { id: 28, name: "Arunima D", song: "Tum Bin Jiya Jaye", artist: "K S Chithra" }
+          ];
+        
+          const grid = document.getElementById('grid');
+          const audioPlayer = document.getElementById('mainAudio');
+          const statusBar = document.getElementById('statusBar');
+          const statusText = document.getElementById('nowPlayingText');
+          const playAllBtn = document.getElementById('playAllBtn');
+        
+          let currentCard = null;
+          let currentIndex = -1;     // NEW: index into `data` for what's playing
+          let isPlayingAll = false;  // keep Play All button behaviour
+          let playAllIndex = 0;
+        
+          function showStatus(text){ statusBar.style.display='block'; statusText.innerText=text; }
+          function hideStatus(){ statusBar.style.display='none'; statusText.innerText='...'; }
+        
+          function clearPausedTooltips(){
+            document.querySelectorAll('.paused-tip').forEach(t=>t.remove());
+          }
+          function showPausedTooltip(card){
+            clearPausedTooltips();
+            const tip=document.createElement('div');
+            tip.className='paused-tip';
+            tip.textContent='Paused';
             card.appendChild(tip);
-        }
-
-        // Build cards and attach dataset for easy lookup
-        data.forEach(item => {
+          }
+        
+          // NEW: centralized play helper by index (handles UI + audio)
+          function playByIndex(index, {restart=false} = {}){
+            if(index < 0) index = 0;
+            if(index >= data.length) index = 0;         // wrap around to first
+            const item = data[index];
+            const filePath = `songs/${item.id}.mp3`;
+        
+            // UI highlight
+            document.querySelectorAll('.card.playing').forEach(c=>c.classList.remove('playing'));
+            const card = document.querySelector(`.card[data-id="${item.id}"]`);
+            currentCard = card;
+            currentIndex = index;
+            if(card) card.classList.add('playing');
+        
+            // load & play
+            audioPlayer.src = filePath;
+            try { audioPlayer.currentTime = 0; } catch(e){}
+            const start = restart ? Promise.resolve() : Promise.resolve();
+            start.then(()=>audioPlayer.play())
+              .then(()=> showStatus(`${item.song} - ${item.name}`))
+              .catch(()=>{
+                // if it fails (missing file), try the next one
+                setTimeout(()=> playByIndex((index+1)%data.length), 200);
+              });
+          }
+        
+          // Build cards
+          data.forEach(item => {
             const card = document.createElement('div');
             card.className = 'card';
             card.dataset.id = String(item.id);
-
-            // Generating initials for the record label
-            const initials = item.name.split(' ').map(n => n[0]).join('');
-
+            const initials = item.name.split(' ').map(n=>n[0]).join('');
             card.innerHTML = `
-                <div class="record-sleeve">
-                    <div class="record">
-                        <div class="label">${initials}</div>
-                    </div>
-                </div>
-                <div class="info">
-                    <div class="name">${item.name}</div>
-                    <div class="song">${item.song}</div>
-                    <div class="artist">${item.artist}</div>
-                </div>
+              <div class="record-sleeve">
+                <div class="record"><div class="label">${initials}</div></div>
+              </div>
+              <div class="info">
+                <div class="name">${item.name}</div>
+                <div class="song">${item.song}</div>
+                <div class="artist">${item.artist}</div>
+              </div>
             `;
-
-            // Single-click vs double-click handling:
-            let clickTimer = null;
-            const CLICK_DELAY = 250; // ms
-
+        
+            // click vs dblclick
+            let clickTimer=null; const CLICK_DELAY=250;
+        
             // Single click: toggle play/pause for this card
-            function handleSingleClick() {
-                // If Play All is active, stop it when user interacts with an individual card
-                if (isPlayingAll) {
-                    stopPlayAll();
-                }
-
-                const filePath = `songs/${item.id}.mp3`;
-
-                // If this card is currently playing and audio is playing -> pause
-                if (currentCard === card && !audioPlayer.paused && !audioPlayer.ended) {
-                    audioPlayer.pause();
-                    card.classList.remove('playing');
-                    showPausedTooltip(card);
-                    statusText.innerText = 'Paused - ' + `${item.song} - ${item.name}`;
-                    return;
-                }
-
-                // If this card is current but paused -> resume
-                if (currentCard === card && audioPlayer.paused) {
-                    // If audio element has no src (previous Play All might have cleared it), ensure src is set
-                    if (!audioPlayer.src || audioPlayer.src === "") {
-                        audioPlayer.src = filePath;
-                    }
-                    clearPausedTooltips();
-                    audioPlayer.play().catch(() => {
-                        alert("Could not resume file: " + filePath);
-                        card.classList.remove('playing');
-                        currentCard = null;
-                        hideStatus();
-                    });
-                    card.classList.add('playing');
-                    showStatus(`${item.song} - ${item.name}`);
-                    return;
-                }
-
-                // Play new card
-                if (currentCard) {
-                    currentCard.classList.remove('playing');
-                }
+            function handleSingleClick(){
+              if(isPlayingAll) stopPlayAll();
+              const index = data.findIndex(d => String(d.id) === card.dataset.id);
+        
+              // If this card is current & playing -> pause
+              if(currentIndex === index && !audioPlayer.paused && !audioPlayer.ended){
+                audioPlayer.pause();
+                card.classList.remove('playing');
+                showPausedTooltip(card);
+                statusText.innerText = 'Paused - ' + `${data[index].song} - ${data[index].name}`;
+                return;
+              }
+        
+              // If this card is current but paused -> resume
+              if(currentIndex === index && audioPlayer.paused){
                 clearPausedTooltips();
-
-                currentCard = card;
-                card.classList.add('playing');
-                audioPlayer.src = filePath;
-                // start from beginning for new selection
-                try { audioPlayer.currentTime = 0; } catch (e) { /* ignore */ }
-                audioPlayer.play().then(() => {
-                    showStatus(`${item.song} - ${item.name}`);
-                }).catch(() => {
-                    alert("Could not find file: " + filePath);
-                    card.classList.remove('playing');
-                    currentCard = null;
-                    hideStatus();
-                });
+                audioPlayer.play().then(()=>{
+                  card.classList.add('playing');
+                  showStatus(`${data[index].song} - ${data[index].name}`);
+                }).catch(()=>{ /* ignore */ });
+                return;
+              }
+        
+              // Else: start this track (and auto-advance will handle the rest)
+              clearPausedTooltips();
+              playByIndex(index, {restart:true});
             }
-
-            // Double click: restart the track from the start and play
-            function handleDoubleClick() {
-                // If Play All is active, stop it
-                if (isPlayingAll) {
-                    stopPlayAll();
-                }
-
-                const filePath = `songs/${item.id}.mp3`;
-
-                if (currentCard !== card) {
-                    if (currentCard) currentCard.classList.remove('playing');
-                    clearPausedTooltips();
-                    currentCard = card;
-                    card.classList.add('playing');
-                    audioPlayer.src = filePath;
-                    try { audioPlayer.currentTime = 0; } catch(e) {}
-                    audioPlayer.play().then(() => {
-                        showStatus(`${item.song} - ${item.name}`);
-                    }).catch(() => {
-                        alert("Could not find file: " + filePath);
-                        card.classList.remove('playing');
-                        currentCard = null;
-                        hideStatus();
-                    });
-                    return;
-                }
-
-                // If it's already current, restart from 0 and play
-                clearPausedTooltips();
-                try { audioPlayer.currentTime = 0; } catch(e) {}
-                audioPlayer.play().then(() => {
-                    card.classList.add('playing');
-                    showStatus(`${item.song} - ${item.name}`);
-                }).catch(() => {
-                    alert("Could not restart file: " + filePath);
-                    card.classList.remove('playing');
-                    currentCard = null;
-                    hideStatus();
-                });
+        
+            // Double click: restart from beginning
+            function handleDoubleClick(){
+              if(isPlayingAll) stopPlayAll();
+              const index = data.findIndex(d => String(d.id) === card.dataset.id);
+              clearPausedTooltips();
+              playByIndex(index, {restart:true});
             }
-
-            // Attach click handler
-            card.addEventListener('click', (ev) => {
-                if (clickTimer) {
-                    clearTimeout(clickTimer);
-                    clickTimer = null;
-                }
-                clickTimer = setTimeout(() => {
-                    handleSingleClick();
-                    clickTimer = null;
-                }, CLICK_DELAY);
+        
+            card.addEventListener('click', ()=>{
+              if(clickTimer){ clearTimeout(clickTimer); clickTimer=null; }
+              clickTimer=setTimeout(()=>{ handleSingleClick(); clickTimer=null; }, CLICK_DELAY);
             });
-
-            // Attach dblclick handler (clears single-click timer and executes double-click action)
-            card.addEventListener('dblclick', (ev) => {
-                if (clickTimer) {
-                    clearTimeout(clickTimer);
-                    clickTimer = null;
-                }
-                handleDoubleClick();
+            card.addEventListener('dblclick', ()=>{
+              if(clickTimer){ clearTimeout(clickTimer); clickTimer=null; }
+              handleDoubleClick();
             });
-
+        
             grid.appendChild(card);
-        });
-
-        // Play All logic
-        playAllBtn.addEventListener('click', () => {
-            if (!isPlayingAll) {
-                startPlayAll();
-            } else {
-                stopPlayAll();
-            }
-        });
-
-        function startPlayAll() {
-            // Reset any single-play visuals
-            if (currentCard) {
-                currentCard.classList.remove('playing');
-                currentCard = null;
-            }
+          });
+        
+          // Play All button (kept)
+          playAllBtn.addEventListener('click', ()=>{ !isPlayingAll ? startPlayAll() : stopPlayAll(); });
+        
+          function startPlayAll(){
+            if(currentCard) currentCard.classList.remove('playing');
             clearPausedTooltips();
-
             isPlayingAll = true;
             playAllIndex = 0;
-            playAllBtn.setAttribute('aria-playing', 'true');
-            playAllBtn.textContent = 'Stop';
+            playAllBtn.setAttribute('aria-playing','true');
+            playAllBtn.textContent='Stop';
             showStatus('Starting playlist...');
-            playNextInAll();
-        }
-
-        function stopPlayAll() {
-            // Stop the playlist and fully reset audio & UI state
+            playByIndex(playAllIndex, {restart:true});
+          }
+        
+          function stopPlayAll(){
             isPlayingAll = false;
             playAllIndex = 0;
-            playAllBtn.setAttribute('aria-playing', 'false');
-            playAllBtn.textContent = 'Play All';
-
-            // pause & reset audio element
-            try {
-                audioPlayer.pause();
-            } catch (e) {}
-            try {
-                audioPlayer.currentTime = 0;
-            } catch (e) {}
-            // clear source so there is no dangling src to resume
-            try {
-                audioPlayer.removeAttribute('src');
-                audioPlayer.src = '';
-            } catch (e) {}
-            try {
-                audioPlayer.load();
-            } catch (e) {}
-
-            // clear UI
-            document.querySelectorAll('.card.playing').forEach(c => c.classList.remove('playing'));
+            playAllBtn.setAttribute('aria-playing','false');
+            playAllBtn.textContent='Play All';
+            try{ audioPlayer.pause(); }catch(e){}
+            try{ audioPlayer.currentTime = 0; }catch(e){}
+            try{ audioPlayer.removeAttribute('src'); audioPlayer.src=''; audioPlayer.load(); }catch(e){}
+            document.querySelectorAll('.card.playing').forEach(c=>c.classList.remove('playing'));
             clearPausedTooltips();
             hideStatus();
-
-            // IMPORTANT: make sure there's no stale currentCard left (this fixed the bug)
             currentCard = null;
-        }
-
-        function playNextInAll() {
-            if (!isPlayingAll) return;
-
-            if (playAllIndex >= data.length) {
-                // finished playlist
-                stopPlayAll();
-                return;
-            }
-
-            const item = data[playAllIndex];
-            const filePath = `songs/${item.id}.mp3`;
-
-            // Visual: highlight corresponding card
-            document.querySelectorAll('.card.playing').forEach(c => c.classList.remove('playing'));
-            const nextCard = document.querySelector(`.card[data-id="${item.id}"]`);
-            if (nextCard) nextCard.classList.add('playing');
-            currentCard = nextCard;
-
-            showStatus(`${item.song} - ${item.name} (${playAllIndex + 1}/${data.length})`);
-
-            audioPlayer.src = filePath;
-            try { audioPlayer.currentTime = 0; } catch(e) {}
-            audioPlayer.play().then(() => {
-                // play started successfully; wait for onended
-            }).catch(() => {
-                // couldn't play this file — skip to next after short delay
-                setTimeout(() => {
-                    playAllIndex++;
-                    playNextInAll();
-                }, 300);
-            });
-        }
-
-        // When a track finishes
-        audioPlayer.addEventListener('ended', () => {
+            currentIndex = -1;
+          }
+        
+          // 🔁 Auto-advance on end (always)
+          audioPlayer.addEventListener('ended', ()=>{
             clearPausedTooltips();
-            if (isPlayingAll) {
-                playAllIndex++;
-                playNextInAll();
-            } else {
-                // single track finished — clear animation
-                if (currentCard) currentCard.classList.remove('playing');
-                hideStatus();
-                currentCard = null;
+            const next = (currentIndex + 1) % data.length;  // wraps to first
+            if(isPlayingAll){
+              playAllIndex = next;                          // keep Play All index in sync
             }
-        });
-
-        // If audio errors out, skip to next if in play-all mode
-        audioPlayer.addEventListener('error', () => {
-            clearPausedTooltips();
-            if (isPlayingAll) {
-                playAllIndex++;
-                playNextInAll();
-            } else {
-                if (currentCard) currentCard.classList.remove('playing');
-                hideStatus();
-                currentCard = null;
+            playByIndex(next, {restart:true});              // auto-play next track
+          });
+        
+          // If audio errors out, skip to next
+          audioPlayer.addEventListener('error', ()=>{
+            const next = (currentIndex + 1) % data.length;
+            if(isPlayingAll){ playAllIndex = next; }
+            playByIndex(next, {restart:true});
+          });
+        
+          // If user pauses during Play All, stop playlist (kept behaviour)
+          audioPlayer.addEventListener('pause', ()=>{
+            if(isPlayingAll && !audioPlayer.ended){
+              stopPlayAll();
             }
-        });
-
-        // If a user manually pauses while Play All is active, treat as stop
-        audioPlayer.addEventListener('pause', () => {
-            // if Play All was active and we paused mid-track, stop the Play All session
-            if (isPlayingAll && !audioPlayer.ended) {
-                stopPlayAll();
-            }
-        });
-
-    </script>
+          });
+  </script>
 </body>
 </html>
+
 
 
 
