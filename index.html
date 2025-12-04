@@ -180,6 +180,46 @@
             from { opacity: 0; transform: translateY(4px); }
             to   { opacity: 0.95; transform: translateY(0); }
         }
+
+        /* Skipped cards show amber accent */
+        .card.skipped {
+          border-color: #ffbf00 !important;
+          background: #3a2f12 !important;
+        }
+        
+        .card.skipped .artist,
+        .card.skipped .song,
+        .card.skipped .name {
+          color: #ffbf00 !important;
+        }
+        
+        /* Right-click context menu */
+        .ctxmenu {
+          position: fixed;
+          z-index: 9999;
+          background: #1d1d1d;
+          border: 1px solid #f0db4f;
+          border-radius: 6px;
+          min-width: 140px;
+          box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+          overflow: hidden;
+          font-family: inherit;
+        }
+        .ctxmenu button {
+          display: block;
+          width: 100%;
+          padding: 10px 12px;
+          background: transparent;
+          color: #fff;
+          border: 0;
+          text-align: left;
+          cursor: pointer;
+        }
+        .ctxmenu button:hover {
+          background: #2a2a2a;
+          color: #f0db4f;
+        }
+
     </style>
 </head>
 <body>
@@ -199,8 +239,8 @@
 
     <audio id="mainAudio"></audio>
 
-      <script>
-          // DATA MAPPING (unchanged)
+    <script>
+          // --- Data (unchanged) ---
           const data = [
             { id: 1, name: "Sukonya G", song: "Pal", artist: "KK" },
             { id: 2, name: "Biju D", song: "5 Leaves Left", artist: "Nick Drake" },            
@@ -239,9 +279,12 @@
           const playAllBtn = document.getElementById('playAllBtn');
         
           let currentCard = null;
-          let currentIndex = -1;     // NEW: index into `data` for what's playing
-          let isPlayingAll = false;  // keep Play All button behaviour
+          let currentIndex = -1;
+          let isPlayingAll = false;
           let playAllIndex = 0;
+        
+          // NEW: Skipped songs
+          const skippedIds = new Set();
         
           function showStatus(text){ statusBar.style.display='block'; statusText.innerText=text; }
           function hideStatus(){ statusBar.style.display='none'; statusText.innerText='...'; }
@@ -257,29 +300,54 @@
             card.appendChild(tip);
           }
         
-          // NEW: centralized play helper by index (handles UI + audio)
+          // Find the next index that is NOT skipped, starting after `start`
+          function nextNonSkipped(start){
+            if (data.length === 0) return -1;
+            for (let i = 1; i <= data.length; i++){
+              const idx = (start + i) % data.length;
+              if (!skippedIds.has(data[idx].id)) return idx;
+            }
+            return -1; // all skipped
+          }
+        
+          // Centralized player
           function playByIndex(index, {restart=false} = {}){
-            if(index < 0) index = 0;
-            if(index >= data.length) index = 0;         // wrap around to first
+            if (index < 0) index = 0;
+            // If the chosen index is skipped, hop to next available
+            if (skippedIds.has(data[index].id)){
+              const nxt = nextNonSkipped(index);
+              if (nxt === -1){
+                stopPlayAll();
+                showStatus('All songs are skipped.');
+                return;
+              }
+              index = nxt;
+            }
+        
             const item = data[index];
             const filePath = `songs/${item.id}.mp3`;
         
-            // UI highlight
+            // UI
             document.querySelectorAll('.card.playing').forEach(c=>c.classList.remove('playing'));
             const card = document.querySelector(`.card[data-id="${item.id}"]`);
             currentCard = card;
             currentIndex = index;
             if(card) card.classList.add('playing');
         
-            // load & play
+            // Load & play
             audioPlayer.src = filePath;
             try { audioPlayer.currentTime = 0; } catch(e){}
-            const start = restart ? Promise.resolve() : Promise.resolve();
-            start.then(()=>audioPlayer.play())
+            audioPlayer.play()
               .then(()=> showStatus(`${item.song} - ${item.name}`))
               .catch(()=>{
-                // if it fails (missing file), try the next one
-                setTimeout(()=> playByIndex((index+1)%data.length), 200);
+                // If this fails (missing file), try next non-skipped
+                const nxt = nextNonSkipped(index);
+                if (nxt === -1){
+                  stopPlayAll();
+                  showStatus('All songs are skipped or unavailable.');
+                  return;
+                }
+                playByIndex(nxt, {restart:true});
               });
           }
         
@@ -300,10 +368,8 @@
               </div>
             `;
         
-            // click vs dblclick
+            // Click vs dblclick
             let clickTimer=null; const CLICK_DELAY=250;
-        
-            // Single click: toggle play/pause for this card
             function handleSingleClick(){
               if(isPlayingAll) stopPlayAll();
               const index = data.findIndex(d => String(d.id) === card.dataset.id);
@@ -317,22 +383,21 @@
                 return;
               }
         
-              // If this card is current but paused -> resume
+              // If current but paused -> resume
               if(currentIndex === index && audioPlayer.paused){
                 clearPausedTooltips();
                 audioPlayer.play().then(()=>{
                   card.classList.add('playing');
                   showStatus(`${data[index].song} - ${data[index].name}`);
-                }).catch(()=>{ /* ignore */ });
+                });
                 return;
               }
         
-              // Else: start this track (and auto-advance will handle the rest)
+              // Start this track (manual play ignores skip flag)
               clearPausedTooltips();
               playByIndex(index, {restart:true});
             }
         
-            // Double click: restart from beginning
             function handleDoubleClick(){
               if(isPlayingAll) stopPlayAll();
               const index = data.findIndex(d => String(d.id) === card.dataset.id);
@@ -349,19 +414,78 @@
               handleDoubleClick();
             });
         
+            // --- Right-click context menu: Skip / Unskip ---
+            card.addEventListener('contextmenu', (e)=>{
+              e.preventDefault();
+              closeCtxMenu(); // ensure only one
+              const id = item.id;
+        
+              const menu = document.createElement('div');
+              menu.className = 'ctxmenu';
+              const isSkipped = skippedIds.has(id);
+              const btn = document.createElement('button');
+              btn.textContent = isSkipped ? 'Unskip' : 'Skip';
+              btn.addEventListener('click', ()=>{
+                if (isSkipped){
+                  skippedIds.delete(id);
+                  card.classList.remove('skipped');
+                } else {
+                  skippedIds.add(id);
+                  card.classList.add('skipped');
+                  // If skipping the currently playing song while in Play All, jump forward immediately
+                  if (isPlayingAll && currentIndex === data.findIndex(d=>d.id===id)){
+                    const nxt = nextNonSkipped(currentIndex);
+                    if (nxt === -1){
+                      stopPlayAll();
+                      showStatus('All songs are skipped.');
+                    } else {
+                      playByIndex(nxt, {restart:true});
+                    }
+                  }
+                }
+                closeCtxMenu();
+              });
+              menu.appendChild(btn);
+        
+              // place menu
+              document.body.appendChild(menu);
+              const vw = window.innerWidth, vh = window.innerHeight;
+              const mw = menu.offsetWidth, mh = menu.offsetHeight;
+              let x = e.clientX, y = e.clientY;
+              if (x + mw > vw) x = vw - mw - 4;
+              if (y + mh > vh) y = vh - mh - 4;
+              menu.style.left = x + 'px';
+              menu.style.top  = y + 'px';
+            });
+        
             grid.appendChild(card);
           });
         
-          // Play All button (kept)
+          function closeCtxMenu(){
+            document.querySelectorAll('.ctxmenu').forEach(m=>m.remove());
+          }
+          document.addEventListener('click', closeCtxMenu);
+          document.addEventListener('scroll', closeCtxMenu, true);
+          window.addEventListener('blur', closeCtxMenu);
+        
+          // Play All button
           playAllBtn.addEventListener('click', ()=>{ !isPlayingAll ? startPlayAll() : stopPlayAll(); });
         
           function startPlayAll(){
             if(currentCard) currentCard.classList.remove('playing');
             clearPausedTooltips();
             isPlayingAll = true;
-            playAllIndex = 0;
             playAllBtn.setAttribute('aria-playing','true');
             playAllBtn.textContent='Stop';
+        
+            // start from first non-skipped
+            const first = nextNonSkipped(data.length - 1); // will return 0 if none skipped at start
+            if (first === -1){
+              showStatus('All songs are skipped.');
+              stopPlayAll();
+              return;
+            }
+            playAllIndex = first;
             showStatus('Starting playlist...');
             playByIndex(playAllIndex, {restart:true});
           }
@@ -381,32 +505,41 @@
             currentIndex = -1;
           }
         
-          // 🔁 Auto-advance on end (always)
+          // Auto-advance on end (skips amber-marked tracks and wraps)
           audioPlayer.addEventListener('ended', ()=>{
             clearPausedTooltips();
-            const next = (currentIndex + 1) % data.length;  // wraps to first
-            if(isPlayingAll){
-              playAllIndex = next;                          // keep Play All index in sync
+            const next = nextNonSkipped(currentIndex);
+            if (next === -1){
+              stopPlayAll();
+              showStatus('All songs are skipped.');
+              return;
             }
-            playByIndex(next, {restart:true});              // auto-play next track
-          });
-        
-          // If audio errors out, skip to next
-          audioPlayer.addEventListener('error', ()=>{
-            const next = (currentIndex + 1) % data.length;
-            if(isPlayingAll){ playAllIndex = next; }
+            if (isPlayingAll){ playAllIndex = next; }
             playByIndex(next, {restart:true});
           });
         
-          // If user pauses during Play All, stop playlist (kept behaviour)
+          // On error, also try next non-skipped
+          audioPlayer.addEventListener('error', ()=>{
+            const next = nextNonSkipped(currentIndex);
+            if (next === -1){
+              stopPlayAll();
+              showStatus('All songs are skipped or unavailable.');
+              return;
+            }
+            if (isPlayingAll){ playAllIndex = next; }
+            playByIndex(next, {restart:true});
+          });
+        
+          // If user pauses during Play All, stop playlist
           audioPlayer.addEventListener('pause', ()=>{
             if(isPlayingAll && !audioPlayer.ended){
               stopPlayAll();
             }
           });
-  </script>
+        </script>
 </body>
 </html>
+
 
 
 
