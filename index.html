@@ -282,7 +282,8 @@
           let currentIndex = -1;
           let isPlayingAll = false;
           let playAllIndex = 0;
-        
+          let userInitiatedPause = false;
+
           // NEW: Skipped songs
           const skippedIds = new Set();
         
@@ -376,6 +377,7 @@
         
               // If this card is current & playing -> pause
               if(currentIndex === index && !audioPlayer.paused && !audioPlayer.ended){
+                userInitiatedPause = true;
                 audioPlayer.pause();
                 card.classList.remove('playing');
                 showPausedTooltip(card);
@@ -532,13 +534,15 @@
         
           // If user pauses during Play All, stop playlist
           audioPlayer.addEventListener('pause', ()=>{
-            if(isPlayingAll && !audioPlayer.ended){
+            if(isPlayingAll && userInitiatedPause){
               stopPlayAll();
             }
+            userInitiatedPause = false;
           });
         </script>
 </body>
 </html>
+
 
 
 
