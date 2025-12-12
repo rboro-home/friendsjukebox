@@ -221,11 +221,15 @@
         }
 
         /* 3D multicolor Covers button */
-/* Covers button — fixed at bottom of the page, not floating */
+
+/* Covers button — fixed at bottom of the page, and floating above the status bar */
 #coversBtn {
-    margin-left: auto;
-    display: block;
-    margin-top: 40px;
+    /* --- FIX: New fixed positioning properties --- */
+    position: fixed; /* Makes it float relative to the viewport */
+    right: 20px;     /* Positions it on the right */
+    bottom: 65px;    /* Positions it 65px from the bottom (above the status bar) */
+    z-index: 99;     /* Ensures it is always on top of other elements */
+    /* ------------------------------------------------ */
 
     padding: 14px 28px;
     font-size: 1.2em;
@@ -247,7 +251,6 @@
 #coversBtn:hover {
     transform: scale(1.08);
 }
-
 
         @keyframes gradientShift {
             0% { background-position: 0% 50%; }
@@ -584,3 +587,4 @@
     </script>
 </body>
 </html>
+
