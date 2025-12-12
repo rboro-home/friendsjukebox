@@ -221,15 +221,14 @@
         }
 
         /* 3D multicolor Covers button */
-
 /* Covers button — fixed at bottom of the page, and floating above the status bar */
 #coversBtn {
-    /* --- FIX: New fixed positioning properties --- */
-    position: fixed; /* Makes it float relative to the viewport */
-    right: 20px;     /* Positions it on the right */
-    bottom: 65px;    /* Positions it 65px from the bottom (above the status bar) */
-    z-index: 99;     /* Ensures it is always on top of other elements */
-    /* ------------------------------------------------ */
+    /* --- MODIFIED POSITIONING (The Fix) --- */
+    position: fixed;
+    right: 20px;
+    bottom: 65px; /* Sets it 65px up from the bottom, above the status bar */
+    z-index: 99;
+    /* -------------------------------------- */
 
     padding: 14px 28px;
     font-size: 1.2em;
@@ -251,6 +250,7 @@
 #coversBtn:hover {
     transform: scale(1.08);
 }
+
 
         @keyframes gradientShift {
             0% { background-position: 0% 50%; }
@@ -315,8 +315,6 @@
           ];
 
           /* --- The rest of your original JavaScript (playback, skipping, UI, etc.) ---
-               Nothing below this point was altered except adding the Covers button above.
-               I’m keeping it identical to your uploaded file. 
           */
 
           const grid = document.getElementById('grid');
@@ -587,4 +585,3 @@
     </script>
 </body>
 </html>
-
