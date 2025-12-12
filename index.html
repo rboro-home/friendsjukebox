@@ -16,12 +16,24 @@
             align-items: center;
         }
 
+        /* NEW: Container for the H1 and Covers Button to control alignment and positioning */
+        #header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            max-width: 1400px; /* Match the max-width of the .grid */
+            margin-bottom: 20px; 
+            padding: 0 10px; /* Add horizontal padding inside the container for spacing */
+        }
+        
         h1 {
             text-transform: uppercase;
             letter-spacing: 5px;
             border-bottom: 2px solid #f0db4f;
             padding-bottom: 10px;
-            margin-bottom: 20px;
+            /* MODIFIED: Remove bottom margin here, controlled by #header-container */
+            margin-bottom: 0; 
         }
 
         /* Play All button (keeps the look & feel) */
@@ -221,16 +233,11 @@
         }
 
         /* 3D multicolor Covers button */
-/* Covers button — fixed at the TOP RIGHT corner */
 #coversBtn {
-    /* --- MODIFIED POSITIONING (The New Fix) --- */
-    position: fixed;
-    right: 20px;
-    top: 20px; /* Positions it 20px from the top */
-    bottom: auto; /* Removes bottom constraint from previous fix */
-    z-index: 99;
-    /* -------------------------------------- */
-
+    /* MODIFIED: Removed position: fixed, top, right, z-index */
+    margin-left: 20px; /* Space between the heading and the button */
+    flex-shrink: 0; 
+    
     padding: 14px 28px;
     font-size: 1.2em;
     font-style: italic;
@@ -262,7 +269,10 @@
 </head>
 <body>
 
-    <h1>The CCZ Friendship Jukebox</h1>
+    <div id="header-container">
+        <h1>The CCZ Friendship Jukebox</h1>
+        <button id="coversBtn" onclick="window.location='covers-new.html'"><i>Covers</i></button>
+    </div>
 
     <div id="controls">
         <button id="playAllBtn" aria-playing="false" hidden>Play All</button>
@@ -276,8 +286,6 @@
     </div>
 
     <audio id="mainAudio"></audio>
-
-    <button id="coversBtn" onclick="window.location='covers.html'"><i>Covers</i></button>
 
     <script>
           /* --- Data (unchanged from your original file) --- */
