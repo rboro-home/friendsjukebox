@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CCZ – Enhanced Covers Jukebox</title>
+<style>
+body {
+    background:#1a1a1a; color:white;
+    font-family:'Courier New', monospace;
+    margin:0; padding:20px;
+    display:flex; flex-direction:column; align-items:center;
+}
+h1 {
+    text-transform:uppercase; letter-spacing:5px;
+    border-bottom:2px solid #f0db4f; padding-bottom:10px;
+}
+.grid {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(350px,1fr));
+    gap:30px; max-width:1400px; width:100%;
+}
+.card {
+    background:#2b2b2b; border:1px solid #444;
+    border-radius:14px; padding:18px; cursor:pointer;
+    transition:.25s;
+    position:relative;
+    
+    /* REVERTED: Remove flex, use vertical layout */
+    display: block; 
+    /* NEW: Constrain card width to cassette width + padding */
+    width: 260px; 
+    text-align: center; /* Center text elements below the image */
+}
+.card:hover { background:#3b3b3b; border-color:#f0db4f; }
+.card.playing { border-color:#00ff88; }
+
+/* Cassette */
+.cassette {
+    width:260px; 
+    position:relative;
+    margin: 0 auto; /* Center the cassette inside the card */
+}
+.cassette img { width:260px; border-radius:6px; }
+
+/* Spools - Updated for realism and better rotation visibility */
+.spool {
+    position:absolute; 
+    width:42px; 
+    height:42px;
+    border-radius:50%;
+    /* Use repeating-conic-gradient to create gear teeth/spokes */
+    background: repeating-conic-gradient(
+        #eee 0deg, #eee 5deg, 
+        #333 5deg, #333 30deg /* Creates 12 visible spokes */
+    );
+    box-shadow:inset 0 0 6px #000, 0 0 4px rgba(0,0,0,0.5);
+    animation:none; pointer-events:none;
+    z-index: 5; 
+    overflow: hidden; 
+}
+/* Creating a dark center to enhance the gear look */
+.spool::before {
+    content: '';
+    position: absolute;
+    width: 60%;
+    height: 60%;
+    top: 20%;
+    left: 20%;
+    border-radius: 50%;
+    background: #1a1a1a; /* Matches body background for a 'hole' look */
+    z-index: 6;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.8);
+}
+
+.spool.left { top:53px; left:63px; }
+.spool.right { top:53px; right:62px; }
+
+/* Spool Spin Animation - Speed 10s, Anticlockwise */
+@keyframes spin {100%{transform:rotate(-360deg);} }
+.card.playing .spool { animation:spin 10s linear infinite; }
+
+
+/* Light glare */
+.glare {
+    position:absolute; top:0; left:0;
+    width:260px; height:150px;
+    background:linear-gradient(135deg,rgba(255,255,255,0.15),rgba(255,255,255,0));
+    border-radius:6px;
+    pointer-events:none;
+    mix-blend-mode:screen;
+    z-index: 10;
+}
+
+/* Play/Pause overlay */
+.overlay-icon {
+    position:absolute; top:0; left:0; width:260px; height:150px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:42px; color:white;
+    opacity:0; transition:.2s;
+    z-index: 20;
+}
+.card:hover .overlay-icon { opacity:.25; }
+.card.playing .overlay-icon { opacity:.05; }
+.card[data-paused="true"] .overlay-icon {
+    content: "||";
+    opacity: 0.8;
+    color: #f0db4f;
+}
+
+/* REVERTED: Remove .info wrapper styling */
+
+.name{font-weight:bold;margin-top:12px;}
+.song{color:#bbb;}
+.artist{color:#f0db4f;font-style:italic;}
+
+.status-bar {
+    position:fixed; bottom:0; left:0; width:100%;
+    background:#000; padding:14px; border-top:2px solid #f0db4f;
+    display:none; text-align:center;
+}
+#backBtn {
+    margin:20px; padding:10px 20px;
+    background:#f0db4f; border:none; border-radius:8px; cursor:pointer;
+    font-weight:bold;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Cover Songs</h1>
+<button id="backBtn" onclick="location.href='index.html'">← Back</button>
+
+<div class="grid" id="grid"></div>
+
+<div class="status-bar" id="statusBar">
+Now Playing: <span id="nowPlaying" style="color:#f0db4f;font-weight:bold;">...</span>
+</div>
+
+<audio id="audio"></audio>
+
+<script>
+const covers=[
+    {id:"1",name:"Rintu Boro",song:"Kisi Roz Tumse",artist:"Pardes"}
+];
+
+const grid=document.getElementById("grid");
+const player=document.getElementById("audio");
+const status=document.getElementById("statusBar");
+const statusText=document.getElementById("nowPlaying");
+
+let currentCard=null;
+let currentItem=null; // Store current item object
+
+covers.forEach(item=>{
+    const card=document.createElement("div");
+    card.className="card"; 
+    card.dataset.id=item.id;
+
+    card.innerHTML=`
+        <div class="cassette">
+            <img src="Cassette.png">
+            <div class="glare"></div>
+            <div class="spool left"></div>
+            <div class="spool right"></div>
+            <div class="overlay-icon">▶</div>
+        </div>
+        <div class="name">${item.name}</div>
+        <div class="song">${item.song}</div>
+        <div class="artist">${item.artist}</div>
+    `;
+
+    // Single click toggles play/pause/start
+    card.addEventListener("click",()=>{
+        const file=`songs/covers/${item.id}.mp3`;
+
+        // 1. If a different song is playing, stop it
+        if(currentCard && currentCard!==card){
+            currentCard.classList.remove("playing");
+            currentCard.removeAttribute("data-paused");
+        }
+
+        // 2. If this card is currently playing -> PAUSE
+        if(currentCard===card && !player.paused && !player.ended){
+            player.pause();
+            card.classList.remove("playing");
+            card.setAttribute("data-paused", "true"); // Visual cue for paused state
+            statusText.textContent=`Paused — ${item.song}`;
+            return;
+        }
+
+        // 3. If this card is currently paused -> RESUME
+        if(currentCard===card && player.paused){
+            player.play().catch(()=> {
+                // If resume fails (e.g., autoplay block), just show error
+                status.style.display="block";
+                statusText.textContent=`Unable to resume ${item.song}`;
+            });
+            card.classList.add("playing");
+            card.removeAttribute("data-paused");
+            statusText.textContent=`${item.song} — ${item.name}`;
+            return;
+        }
+
+        // 4. If new song (or song ended) -> START PLAYING
+        currentCard=card;
+        currentItem=item;
+        card.classList.add("playing");
+        card.removeAttribute("data-paused");
+        player.src=file; // Set new source
+        player.currentTime=0; // Ensure it starts from beginning
+        
+        player.play().catch(()=> {
+            status.style.display="block";
+            statusText.textContent=`Unable to play ${item.song}`;
+            card.classList.remove("playing");
+        });
+        status.style.display="block";
+        statusText.textContent=`${item.song} — ${item.name}`;
+    });
+
+    // Double click restarts (confirmed to work)
+    card.addEventListener("dblclick",()=>{
+        if(currentCard===card){
+            // Ensure player is current
+            if (player.src.includes(item.id)){
+                player.currentTime=0;
+                player.play();
+                card.classList.add("playing");
+                card.removeAttribute("data-paused");
+                status.style.display="block";
+                statusText.textContent=`Restarted — ${item.song} — ${item.name}`;
+            } else {
+                // If not currently playing, start it from beginning
+                card.click();
+            }
+        }
+    });
+
+    grid.appendChild(card);
+});
+
+// Update UI when audio ends
+player.addEventListener("ended",()=>{
+    if(currentCard) currentCard.classList.remove("playing");
+    if(currentCard) currentCard.removeAttribute("data-paused");
+    if(currentItem) statusText.textContent=`Finished playing ${currentItem.song}`;
+});
+
+// Remove pause state if player starts playing externally (e.g., resuming from a system notification)
+player.addEventListener("play", ()=>{
+    if(currentCard) currentCard.removeAttribute("data-paused");
+});
+</script>
+
+</body>
+</html>
