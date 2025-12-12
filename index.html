@@ -221,12 +221,13 @@
         }
 
         /* 3D multicolor Covers button */
-/* Covers button — fixed at bottom of the page, and floating above the status bar */
+/* Covers button — fixed at the TOP RIGHT corner */
 #coversBtn {
-    /* --- MODIFIED POSITIONING (The Fix) --- */
+    /* --- MODIFIED POSITIONING (The New Fix) --- */
     position: fixed;
     right: 20px;
-    bottom: 65px; /* Sets it 65px up from the bottom, above the status bar */
+    top: 20px; /* Positions it 20px from the top */
+    bottom: auto; /* Removes bottom constraint from previous fix */
     z-index: 99;
     /* -------------------------------------- */
 
